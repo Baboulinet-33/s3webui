@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.5.5 - 2026-10-12
+
+### [1.5.5](https://github.com/wenisch-tech/s3webui/compare/v1.5.4...v1.5.5) (2026-10-12)
+
+
+### Bug Fixes
+
+* update postgre & tomcat versions ([4fc7d47](https://github.com/wenisch-tech/s3webui/commit/4fc7d472be12b5f5f5bc06112c314e104d0f1d2c))
+
+
+
+Docker image: ghcr.io/wenisch-tech/s3webui:1.5.5
+
+
 ## v1.5.4 - 2026-10-07
 
 ### [1.5.4](https://github.com/wenisch-tech/s3webui/compare/v1.5.3...v1.5.4) (2026-10-07)
