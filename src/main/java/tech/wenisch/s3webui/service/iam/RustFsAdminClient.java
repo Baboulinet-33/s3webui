@@ -71,7 +71,24 @@ public class RustFsAdminClient {
         }
         // Native admin routes distinguish an unauthorised RustFS key from an endpoint that simply
         // does not implement the API. Keeping it as RustFS gives the operator the useful error.
+        // Other S3 gateways (Ceph RGW) also answer 400/403 here because they read the path as a
+        // bucket named "rustfs", so they must be excluded explicitly.
+        if (isOtherS3Gateway(probe)) {
+            return false;
+        }
         return probe.statusCode() == 400 || probe.statusCode() == 401 || probe.statusCode() == 403;
+    }
+
+    private static boolean isOtherS3Gateway(RawResponse response) {
+        boolean cephServer = response.headers().entrySet().stream()
+                .filter(entry -> entry.getKey() != null && entry.getKey().equalsIgnoreCase("server"))
+                .flatMap(entry -> entry.getValue().stream())
+                .anyMatch(value -> value != null && value.toLowerCase(java.util.Locale.ROOT).contains("ceph"));
+        if (cephServer) {
+            return true;
+        }
+        String code = match(XML_CODE, new String(response.body(), StandardCharsets.UTF_8));
+        return "NoSuchBucket".equals(code) || "InvalidBucketName".equals(code);
     }
 
     public JsonNode get(String path) {
