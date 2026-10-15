@@ -90,6 +90,15 @@
             <input id="searchSubfolders" type="checkbox" />
             Search subfolders
           </label>
+          <button
+            id="deleteSelectedBtn"
+            type="button"
+            class="btn-danger hidden"
+            onclick="confirmDeleteSelected()"
+          >
+            <i data-lucide="trash-2"></i>
+            <span id="deleteSelectedLabel">Delete selected</span>
+          </button>
           <span
             id="objectSearchStatus"
             class="shrink-0 text-xs font-medium text-slate-500"
@@ -493,6 +502,34 @@
       </div>
     </div>
     <div
+      id="deleteSelectedModal"
+      class="modal-backdrop hidden"
+      aria-hidden="true"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 class="modal-title text-bad-500">Delete selected files</h2>
+          <button class="btn-icon" onclick="closeDialog('deleteSelectedModal')" aria-label="Close">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <p>
+            Delete
+            <strong id="deleteSelectedCount"></strong>
+            ?
+          </p>
+          <div class="alert alert-warn mt-4">This action cannot be undone.</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="closeDialog('deleteSelectedModal')">Cancel</button>
+          <button class="btn-danger" onclick="doDeleteSelected()">Delete</button>
+        </div>
+      </div>
+    </div>
+    <div
       id="bucketPolicyModal"
       class="modal-backdrop hidden"
       aria-hidden="true"
@@ -619,6 +656,37 @@
             r.ok
               ? (location.href = appUrl('/'))
               : showToast(await getResponseErrorMessage(r, 'Failed to delete bucket'), 'danger'),
+          )
+          .catch((e) => showToast(e.message, 'danger'));
+      }
+      function selectedObjectKeys() {
+        return [...document.querySelectorAll('#objectTableBody .obj-check:checked')].map((c) => c.value);
+      }
+      function updateDeleteSelected() {
+        const n = selectedObjectKeys().length;
+        deleteSelectedBtn.classList.toggle('hidden', n === 0);
+        deleteSelectedLabel.textContent = `Delete selected (${n})`;
+      }
+      document.addEventListener('change', (e) => {
+        if (e.target.matches('.obj-check, #selectAll')) updateDeleteSelected();
+      });
+      function confirmDeleteSelected() {
+        const n = selectedObjectKeys().length;
+        if (!n) return;
+        deleteSelectedCount.textContent = n + (n === 1 ? ' file' : ' files');
+        openDialog('deleteSelectedModal');
+      }
+      function doDeleteSelected() {
+        const keys = selectedObjectKeys();
+        apiFetch(`/api/buckets/${encodeURIComponent(BUCKET)}/objects/delete`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(keys),
+        })
+          .then(async (r) =>
+            r.ok
+              ? location.reload()
+              : showToast(await getResponseErrorMessage(r, 'Failed to delete files'), 'danger'),
           )
           .catch((e) => showToast(e.message, 'danger'));
       }

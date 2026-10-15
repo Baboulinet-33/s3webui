@@ -236,13 +236,19 @@ public class S3Service {
     }
 
     public void deleteObjects(String bucket, List<String> keys) {
-        List<ObjectIdentifier> identifiers = keys.stream()
-                .map(k -> ObjectIdentifier.builder().key(k).build())
-                .collect(Collectors.toList());
-        s3Client.deleteObjects(DeleteObjectsRequest.builder()
-                .bucket(bucket)
-                .delete(Delete.builder().objects(identifiers).build())
-                .build());
+        for (int i = 0; i < keys.size(); i += 1000) {
+            List<ObjectIdentifier> identifiers = keys.subList(i, Math.min(i + 1000, keys.size())).stream()
+                    .map(k -> ObjectIdentifier.builder().key(k).build())
+                    .collect(Collectors.toList());
+            var response = s3Client.deleteObjects(DeleteObjectsRequest.builder()
+                    .bucket(bucket)
+                    .delete(Delete.builder().objects(identifiers).quiet(true).build())
+                    .build());
+            if (response.hasErrors() && !response.errors().isEmpty()) {
+                var err = response.errors().get(0);
+                throw new IllegalStateException("Failed to delete '" + err.key() + "': " + err.message());
+            }
+        }
     }
 
     public void renameObject(String bucket, String oldKey, String newKey) {

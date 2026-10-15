@@ -119,6 +119,27 @@ public class S3ApiController {
         return ResponseEntity.ok().build();
     }
 
+    @PostMapping("/buckets/{bucket}/objects/delete")
+    public ResponseEntity<Void> deleteObjects(
+            @PathVariable String bucket,
+            @RequestBody List<String> keys,
+            Principal principal) {
+        if (keys == null || keys.isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        try {
+            s3Service.deleteObjects(bucket, keys);
+            invalidateSearchCatalog();
+            for (String key : keys) {
+                auditHistoryService.record(username(principal), "DELETE", "OBJECT", bucket, key, "Deleted object");
+            }
+        } catch (Exception ex) {
+            recordFailure(principal, "DELETE", "OBJECT", bucket, null, ex);
+            throw ex;
+        }
+        return ResponseEntity.ok().build();
+    }
+
     @PostMapping("/buckets/{bucket}/objects/rename")
     public ResponseEntity<Void> renameObject(
             @PathVariable String bucket,
