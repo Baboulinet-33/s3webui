@@ -55,6 +55,40 @@ public class S3Service {
         s3Client.deleteBucket(DeleteBucketRequest.builder().bucket(name).build());
     }
 
+    /** Deletes every object (and object version / delete marker) in the bucket, then the bucket itself. */
+    public void deleteBucketWithContents(String name) {
+        var paginator = s3Client.listObjectVersionsPaginator(
+                ListObjectVersionsRequest.builder().bucket(name).build());
+        List<ObjectIdentifier> batch = new ArrayList<>();
+        for (var page : paginator) {
+            for (ObjectVersion v : page.versions()) {
+                batch.add(ObjectIdentifier.builder().key(v.key()).versionId(v.versionId()).build());
+            }
+            for (DeleteMarkerEntry m : page.deleteMarkers()) {
+                batch.add(ObjectIdentifier.builder().key(m.key()).versionId(m.versionId()).build());
+            }
+            while (batch.size() >= 1000) {
+                flushDeleteBatch(name, batch.subList(0, 1000));
+            }
+        }
+        if (!batch.isEmpty()) {
+            flushDeleteBatch(name, batch);
+        }
+        deleteBucket(name);
+    }
+
+    private void flushDeleteBatch(String bucket, List<ObjectIdentifier> ids) {
+        var response = s3Client.deleteObjects(DeleteObjectsRequest.builder()
+                .bucket(bucket)
+                .delete(Delete.builder().objects(new ArrayList<>(ids)).quiet(true).build())
+                .build());
+        if (response.hasErrors() && !response.errors().isEmpty()) {
+            var err = response.errors().get(0);
+            throw new IllegalStateException("Failed to delete '" + err.key() + "': " + err.message());
+        }
+        ids.clear();
+    }
+
     public List<S3ObjectDto> listObjects(String bucket, String prefix) {
         String normalizedPrefix = (prefix == null || prefix.isBlank()) ? "" : prefix;
         if (!normalizedPrefix.isEmpty() && !normalizedPrefix.endsWith("/")) {

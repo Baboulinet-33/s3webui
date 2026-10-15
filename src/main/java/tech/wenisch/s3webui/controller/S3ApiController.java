@@ -64,11 +64,19 @@ public class S3ApiController {
     }
 
     @DeleteMapping("/buckets/{bucket}")
-    public ResponseEntity<Void> deleteBucket(@PathVariable String bucket, Principal principal) {
+    public ResponseEntity<Void> deleteBucket(
+            @PathVariable String bucket,
+            @RequestParam(required = false, defaultValue = "false") boolean force,
+            Principal principal) {
         try {
-            s3Service.deleteBucket(bucket);
+            if (force) {
+                s3Service.deleteBucketWithContents(bucket);
+            } else {
+                s3Service.deleteBucket(bucket);
+            }
             invalidateSearchCatalog();
-            auditHistoryService.record(username(principal), "DELETE", "BUCKET", bucket, null, "Deleted bucket");
+            auditHistoryService.record(username(principal), "DELETE", "BUCKET", bucket, null,
+                    force ? "Deleted bucket including all contents" : "Deleted bucket");
         } catch (Exception ex) {
             recordFailure(principal, "DELETE", "BUCKET", bucket, null, ex);
             throw ex;
