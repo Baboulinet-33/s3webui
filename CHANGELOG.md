@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.6.0 - 2026-10-15
+
+## [1.6.0](https://github.com/wenisch-tech/s3webui/compare/v1.5.6...v1.6.0) (2026-10-15)
+
+
+### Features
+
+* Added support for moving and copying files between buckets ([3c75805](https://github.com/wenisch-tech/s3webui/commit/3c758057eaf9638d56730f3356433758efe32fb8))
+* allow deletion of bucket with files in them (requires double confirmation) ([16795e2](https://github.com/wenisch-tech/s3webui/commit/16795e254962712cfc00474d9122acc0add315c9))
+* allow multiselect delete ([e72a75d](https://github.com/wenisch-tech/s3webui/commit/e72a75debe71708734a15d8710583bf65458be2a))
+
+
+
+Docker image: ghcr.io/wenisch-tech/s3webui:1.6.0
+
+
 ## v1.5.6 - 2026-10-15
 
 ### [1.5.6](https://github.com/wenisch-tech/s3webui/compare/v1.5.5...v1.5.6) (2026-10-15)
