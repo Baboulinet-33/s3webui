@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.5.6 - 2026-10-15
+
+### [1.5.6](https://github.com/wenisch-tech/s3webui/compare/v1.5.5...v1.5.6) (2026-10-15)
+
+
+### Bug Fixes
+
+* fixed automatic detection of rustFS as IAM Provider leading to problems with ceph ([da01780](https://github.com/wenisch-tech/s3webui/commit/da01780f469e08f1882ac15c5aacb8be14eecca4))
+
+
+
+Docker image: ghcr.io/wenisch-tech/s3webui:1.5.6
+
+
 ## v1.5.5 - 2026-10-12
 
 ### [1.5.5](https://github.com/wenisch-tech/s3webui/compare/v1.5.4...v1.5.5) (2026-10-12)
