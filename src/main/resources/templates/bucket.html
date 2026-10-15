@@ -91,6 +91,24 @@
             Search subfolders
           </label>
           <button
+            id="copySelectedBtn"
+            type="button"
+            class="btn-secondary hidden"
+            onclick="openMoveSelected(true)"
+          >
+            <i data-lucide="copy"></i>
+            <span id="copySelectedLabel">Copy selected</span>
+          </button>
+          <button
+            id="moveSelectedBtn"
+            type="button"
+            class="btn-secondary hidden"
+            onclick="openMoveSelected()"
+          >
+            <i data-lucide="folder-input"></i>
+            <span id="moveSelectedLabel">Move selected</span>
+          </button>
+          <button
             id="deleteSelectedBtn"
             type="button"
             class="btn-danger hidden"
@@ -171,7 +189,6 @@
               >
                 <td>
                   <input
-                    th:unless="${obj.directory}"
                     class="obj-check"
                     type="checkbox"
                     th:value="${obj.key}"
@@ -502,6 +519,36 @@
       </div>
     </div>
     <div
+      id="moveSelectedModal"
+      class="modal-backdrop hidden"
+      aria-hidden="true"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="modal-card">
+        <div class="modal-header">
+          <h2 id="moveSelectedTitle" class="modal-title">Move selected items</h2>
+          <button class="btn-icon" onclick="closeDialog('moveSelectedModal')" aria-label="Close">
+            <i data-lucide="x"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <label class="block" for="moveTargetBucket">Target bucket</label>
+          <select id="moveTargetBucket" class="input"></select>
+          <label class="mt-4 block" for="moveTargetPrefix">Target folder (optional)</label>
+          <input id="moveTargetPrefix" class="input" placeholder="e.g. archive/2024" />
+          <div class="alert alert-warn mt-4">
+            Folders are moved with all their contents. Existing files with the same name in the
+            target are overwritten. Files larger than 5 GB cannot be moved.
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" onclick="closeDialog('moveSelectedModal')">Cancel</button>
+          <button id="moveSelectedConfirm" class="btn-primary" onclick="doMoveSelected()">Move</button>
+        </div>
+      </div>
+    </div>
+    <div
       id="deleteSelectedModal"
       class="modal-backdrop hidden"
       aria-hidden="true"
@@ -666,14 +713,59 @@
         const n = selectedObjectKeys().length;
         deleteSelectedBtn.classList.toggle('hidden', n === 0);
         deleteSelectedLabel.textContent = `Delete selected (${n})`;
+        moveSelectedBtn.classList.toggle('hidden', n === 0);
+        copySelectedBtn.classList.toggle('hidden', n === 0);
+        copySelectedLabel.textContent = `Copy selected (${n})`;
+        moveSelectedLabel.textContent = `Move selected (${n})`;
       }
       document.addEventListener('change', (e) => {
         if (e.target.matches('.obj-check, #selectAll')) updateDeleteSelected();
       });
+      let transferIsCopy = false;
+      async function openMoveSelected(copy) {
+        if (!selectedObjectKeys().length) return;
+        transferIsCopy = copy === true;
+        moveSelectedTitle.textContent = transferIsCopy ? 'Copy selected items' : 'Move selected items';
+        moveSelectedConfirm.textContent = transferIsCopy ? 'Copy' : 'Move';
+        moveTargetBucket.innerHTML = '';
+        try {
+          const r = await apiFetch('/api/buckets', { headers: { Accept: 'application/json' } });
+          if (!r.ok) throw new Error(await getResponseErrorMessage(r, 'Failed to load buckets'));
+          (await r.json()).forEach((b) => {
+            const o = document.createElement('option');
+            o.value = o.textContent = b.name;
+            if (b.name === BUCKET) o.selected = true;
+            moveTargetBucket.appendChild(o);
+          });
+        } catch (e) {
+          return showToast(e.message, 'danger');
+        }
+        moveTargetPrefix.value = '';
+        openDialog('moveSelectedModal');
+      }
+      function doMoveSelected() {
+        const keys = selectedObjectKeys();
+        apiFetch(`/api/buckets/${encodeURIComponent(BUCKET)}/objects/move`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            keys,
+            targetBucket: moveTargetBucket.value,
+            targetPrefix: moveTargetPrefix.value.trim().replace(/^\/+/, ''),
+            copy: transferIsCopy,
+          }),
+        })
+          .then(async (r) =>
+            r.ok
+              ? location.reload()
+              : showToast(await getResponseErrorMessage(r, transferIsCopy ? 'Failed to copy items' : 'Failed to move items'), 'danger'),
+          )
+          .catch((e) => showToast(e.message, 'danger'));
+      }
       function confirmDeleteSelected() {
         const n = selectedObjectKeys().length;
         if (!n) return;
-        deleteSelectedCount.textContent = n + (n === 1 ? ' file' : ' files');
+        deleteSelectedCount.textContent = n + (n === 1 ? ' item' : ' items (folders include their contents)');
         openDialog('deleteSelectedModal');
       }
       function doDeleteSelected() {

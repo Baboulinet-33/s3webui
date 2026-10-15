@@ -2,7 +2,9 @@ package tech.wenisch.s3webui.controller;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import tech.wenisch.s3webui.model.CompleteMultipartRequest;
+import tech.wenisch.s3webui.model.BucketDto;
 import tech.wenisch.s3webui.model.CorsRuleDto;
+import tech.wenisch.s3webui.model.MoveObjectsRequest;
 import tech.wenisch.s3webui.model.S3ObjectDto;
 import tech.wenisch.s3webui.service.AuditHistoryService;
 import tech.wenisch.s3webui.service.GlobalSearchService;
@@ -128,7 +130,7 @@ public class S3ApiController {
             return ResponseEntity.badRequest().build();
         }
         try {
-            s3Service.deleteObjects(bucket, keys);
+            s3Service.deleteKeys(bucket, keys);
             invalidateSearchCatalog();
             for (String key : keys) {
                 auditHistoryService.record(username(principal), "DELETE", "OBJECT", bucket, key, "Deleted object");
@@ -138,6 +140,41 @@ public class S3ApiController {
             throw ex;
         }
         return ResponseEntity.ok().build();
+    }
+
+    @PostMapping("/buckets/{bucket}/objects/move")
+    public ResponseEntity<Void> moveObjects(
+            @PathVariable String bucket,
+            @RequestBody MoveObjectsRequest request,
+            Principal principal) {
+        if (request.getKeys() == null || request.getKeys().isEmpty()
+                || request.getTargetBucket() == null || request.getTargetBucket().isBlank()) {
+            return ResponseEntity.badRequest().build();
+        }
+        boolean copy = request.isCopy();
+        String action = copy ? "COPY" : "MOVE";
+        String detail = (copy ? "Copied to " : "Moved to ") + request.getTargetBucket() + "/"
+                + (request.getTargetPrefix() == null ? "" : request.getTargetPrefix());
+        try {
+            if (copy) {
+                s3Service.copyObjects(bucket, request.getKeys(), request.getTargetBucket(), request.getTargetPrefix());
+            } else {
+                s3Service.moveObjects(bucket, request.getKeys(), request.getTargetBucket(), request.getTargetPrefix());
+            }
+            invalidateSearchCatalog();
+            for (String key : request.getKeys()) {
+                auditHistoryService.record(username(principal), action, "OBJECT", bucket, key, detail);
+            }
+        } catch (Exception ex) {
+            recordFailure(principal, action, "OBJECT", bucket, null, ex);
+            throw ex;
+        }
+        return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/buckets")
+    public ResponseEntity<List<BucketDto>> listBuckets() {
+        return ResponseEntity.ok(s3Service.listBuckets());
     }
 
     @PostMapping("/buckets/{bucket}/objects/rename")

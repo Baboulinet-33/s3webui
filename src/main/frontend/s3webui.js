@@ -144,7 +144,7 @@ function createBucketSearchResultRow(result) {
   row.className = 'object-subfolder-result';
 
   const selectionCell = document.createElement('td');
-  if (!isFolder) {
+  {
     const checkbox = document.createElement('input');
     checkbox.className = 'obj-check';
     checkbox.type = 'checkbox';

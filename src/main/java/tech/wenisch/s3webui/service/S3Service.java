@@ -235,6 +235,84 @@ public class S3Service {
                 .build());
     }
 
+    /** Expands folder keys (ending in "/") to every object beneath them; file keys pass through. */
+    public List<String> expandKeys(String bucket, List<String> keys) {
+        Set<String> result = new java.util.LinkedHashSet<>();
+        for (String key : keys) {
+            if (!key.endsWith("/")) {
+                result.add(key);
+                continue;
+            }
+            var paginator = s3Client.listObjectsV2Paginator(
+                    ListObjectsV2Request.builder().bucket(bucket).prefix(key).build());
+            for (var page : paginator) {
+                for (S3Object obj : page.contents()) {
+                    result.add(obj.key());
+                }
+            }
+        }
+        return new ArrayList<>(result);
+    }
+
+    /** Deletes the given files and, recursively, the contents of any folder keys. */
+    public void deleteKeys(String bucket, List<String> keys) {
+        deleteObjects(bucket, expandKeys(bucket, keys));
+    }
+
+    /**
+     * Copies files (and folder contents) into targetBucket under targetPrefix, then deletes the sources.
+     * A selected item keeps its own name: "a/b/" with target "x/" becomes "x/b/...". Returns objects moved.
+     */
+    public int moveObjects(String sourceBucket, List<String> keys, String targetBucket, String targetPrefix) {
+        return transferObjects(sourceBucket, keys, targetBucket, targetPrefix, true);
+    }
+
+    /** Copies files (and folder contents) like {@link #moveObjects}, leaving the sources untouched. */
+    public int copyObjects(String sourceBucket, List<String> keys, String targetBucket, String targetPrefix) {
+        return transferObjects(sourceBucket, keys, targetBucket, targetPrefix, false);
+    }
+
+    private int transferObjects(String sourceBucket, List<String> keys, String targetBucket, String targetPrefix,
+            boolean deleteSources) {
+        String prefix = targetPrefix == null ? "" : targetPrefix;
+        if (!prefix.isEmpty() && !prefix.endsWith("/")) {
+            prefix += "/";
+        }
+        if (sourceBucket.equals(targetBucket)) {
+            for (String key : keys) {
+                String parent = key.substring(0, key.lastIndexOf('/', key.length() - (key.endsWith("/") ? 2 : 1)) + 1);
+                if (parent.equals(prefix) || (key.endsWith("/") && prefix.startsWith(key))) {
+                    throw new IllegalArgumentException(
+                            "Cannot move '" + key + "' into its current location or into itself");
+                }
+            }
+        }
+        List<String> moved = new ArrayList<>();
+        for (String selected : keys) {
+            String trimmed = selected.endsWith("/") ? selected.substring(0, selected.length() - 1) : selected;
+            String base = trimmed.substring(trimmed.lastIndexOf('/') + 1);
+            String sourceRoot = selected.endsWith("/")
+                    ? selected
+                    : null;
+            for (String key : expandKeys(sourceBucket, List.of(selected))) {
+                String destKey = sourceRoot != null
+                        ? prefix + base + "/" + key.substring(sourceRoot.length())
+                        : prefix + base;
+                s3Client.copyObject(CopyObjectRequest.builder()
+                        .sourceBucket(sourceBucket)
+                        .sourceKey(key)
+                        .destinationBucket(targetBucket)
+                        .destinationKey(destKey)
+                        .build());
+                moved.add(key);
+            }
+        }
+        if (deleteSources) {
+            deleteObjects(sourceBucket, moved);
+        }
+        return moved.size();
+    }
+
     public void deleteObjects(String bucket, List<String> keys) {
         for (int i = 0; i < keys.size(); i += 1000) {
             List<ObjectIdentifier> identifiers = keys.subList(i, Math.min(i + 1000, keys.size())).stream()
